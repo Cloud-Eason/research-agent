@@ -1,0 +1,100 @@
+[project]
+name = "research-agent"
+version = "0.1.0"
+description = "LLM Research Agent with RAG, crash recovery, and evaluation"
+readme = "README.md"
+authors = [
+    { name = "eason", email = "gysdgood@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    # Agent —— LangGraph 1.x + 安全修复后的 checkpoint
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint>=4.1.1,<5",
+    "langchain-core>=1.0,<2",
+    "langchain-openai>=1.0,<2",
+    "openai>=1.40",
+    # Config
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.3,<3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    # Storage —— 配 Milvus 2.6 服务端
+    "pymilvus>=2.6,<2.7",
+    "redis>=5.0,<9",
+    # Models
+    "sentence-transformers>=3.0,<7",
+    "torch>=2.2",
+    # Tools & ingestion
+    "tavily-python>=0.5",
+    "pypdf>=4.0",
+    "pymupdf>=1.24",
+    "trafilatura>=1.8",
+    # Eval & utils
+    "datasets>=2.20",
+    "tenacity>=8.0",
+    "tiktoken>=0.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "fakeredis>=2.23.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+    "types-PyYAML",
+    "pre-commit>=3.7.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.2,<0.14.0"]
+build-backend = "uv_build"
+
+# --- uv：Linux 下使用 CPU 版 PyTorch，避免下载 CUDA 包 ---
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+# --- Ruff ---
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PT"]
+
+# --- mypy ---
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "pymilvus.*", "trafilatura.*", "fitz.*", "pymupdf.*",
+    "datasets.*", "tavily.*", "sentence_transformers.*", "fakeredis.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# --- pytest ---
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-m 'not integration'"
+markers = ["integration: needs running Docker services (Milvus, Redis)"]
+
+# --- coverage ---
+[tool.coverage.run]
+source = ["src/research_agent"]
+branch = true
