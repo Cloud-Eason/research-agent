@@ -13,7 +13,8 @@ from research_agent.eval.metrics import bootstrap_ci
 from research_agent.eval.records import latest_records
 from research_agent.eval.retrieval_eval import KS
 
-STAGE_ORDER = ("dense", "bm25", "fused", "reranked")
+STAGE_ORDER = ("dense", "bm25", "fused", "candidates", "reranked")
+UNTIMED_STAGES = {"candidates"}  # a slice of the fused list, no work of its own
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -179,7 +180,7 @@ def write_reports(eval_dir: Path) -> Path:
                         _pct(s["all@2"]),
                         _pct(s["all@5"]),
                         _pct(s["all@10"]),
-                        f"{s['ms']:.0f}",
+                        "-" if stage in UNTIMED_STAGES else f"{s['ms']:.0f}",
                     ]
                 )
                 csv_rows.append({"run": manifest["run"], "stage": stage, **s})

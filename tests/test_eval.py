@@ -30,9 +30,9 @@ from research_agent.eval.metrics import (
 )
 from research_agent.eval.records import completed_qids, latest_records
 from research_agent.eval.report import summarize_agent, summarize_retrieval, write_reports
-from research_agent.eval.retrieval_eval import run_retrieval_eval
+from research_agent.eval.retrieval_eval import run_retrieval_eval, score_retrieval
 from research_agent.rag.models import Chunk, ScoredChunk
-from research_agent.rag.retrieval import RetrievalResult
+from research_agent.rag.retrieval import HybridRetriever, RetrievalConfig, RetrievalResult
 
 ROW = {
     "id": "q1",
@@ -135,14 +135,14 @@ def test_parse_round_trip_and_corpus(tmp_path: Path) -> None:
 
 
 # ---- retrieval runner -------------------------------------------------------------
-def scored(title: str) -> ScoredChunk:
+def scored(title: str, position: int = 0) -> ScoredChunk:
     chunk = Chunk(
-        chunk_id=f"{title}-p0-0000",
+        chunk_id=f"{title}-p0-{position:04d}",
         doc_id=title,
         title=title,
         source="s",
         page=None,
-        position=0,
+        position=position,
         text=title,
     )
     return ScoredChunk(chunk=chunk, score=1.0, channel="x")
@@ -175,6 +175,38 @@ def test_retrieval_eval_scores_each_stage_and_resumes(tmp_path: Path) -> None:
     assert summary["dense"]["recall@2"] == 0.5
     assert summary["reranked"]["all@2"] == 1.0
     assert summary["reranked"]["ms"] == 20.0
+
+
+def test_candidates_stage_is_exactly_what_the_reranker_sees() -> None:
+    # Two chunks per paragraph: 4 rerank candidates cover only 2 paragraphs, so
+    # the fused list (deduplicated by title) reaches the second gold paragraph
+    # while the reranker never sees it. That gap is the truncation loss.
+    ranking = [scored(t, i) for t in ("Paris", "Inception", "Christopher Nolan") for i in (0, 1)]
+
+    class SameListStore:
+        def search_dense(self, vector: Any, top_k: int) -> list[ScoredChunk]:
+            return ranking[:top_k]
+
+        def search_bm25(self, query: str, top_k: int) -> list[ScoredChunk]:
+            return ranking[:top_k]
+
+    class ZeroEmbedder:
+        def embed_query(self, text: str) -> list[float]:
+            return [0.0]
+
+    class ReversingReranker:
+        def rerank(self, query: str, candidates: Any) -> list[ScoredChunk]:
+            return list(reversed(candidates))
+
+    retriever = HybridRetriever(
+        SameListStore(),
+        RetrievalConfig(rerank_candidates=4),
+        embedder=ZeroEmbedder(),
+        reranker=ReversingReranker(),
+    )
+    stages = score_retrieval(example(), retriever.retrieve("q", top_n=20), top_k=20)["stages"]
+    assert stages["fused"]["recall@20"] == 1.0
+    assert stages["candidates"]["recall@20"] == stages["reranked"]["recall@20"] == 0.5
 
 
 # ---- agent runner --------------------------------------------------------------------

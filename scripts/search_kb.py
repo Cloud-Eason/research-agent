@@ -53,7 +53,7 @@ def main() -> int:
     print(f"collection={store.collection}  pipeline={retriever.config.label}")
 
     result = retriever.retrieve(args.query, top_n=args.k)
-    for stage in ("dense", "bm25", "fused", "reranked"):
+    for stage in ("dense", "bm25", "fused", "candidates", "reranked"):
         if stage in result.stages:
             timing_key = {"fused": "fuse", "reranked": "rerank"}.get(stage, stage)
             _show(stage, result.stages[stage], args.k, result.timings_ms.get(timing_key))

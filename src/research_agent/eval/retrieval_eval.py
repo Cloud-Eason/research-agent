@@ -1,9 +1,13 @@
 """Layer 1: retrieval-only evaluation (no LLM calls).
 
 The raw question is the query. One run of the full pipeline yields the ranking
-of every stage (dense, bm25, fused, reranked), so a single pass measures what
-each stage contributes. Note: the reranker only re-orders the top
-`rerank_candidates` fused results, so compare stages at k <= that number.
+of every stage (dense, bm25, fused, candidates, reranked), so a single pass
+measures what each stage contributes. `candidates` is the top
+`rerank_candidates` *chunks* of the fused list, i.e. exactly what the reranker
+re-orders: fused -> candidates is the truncation loss (larger for small chunks,
+which cover fewer paragraphs per chunk), and candidates -> reranked is the
+reranker's own effect. candidates and reranked hold the same chunks, so their
+recall must agree once k >= rerank_candidates (a built-in correctness check).
 """
 
 from __future__ import annotations

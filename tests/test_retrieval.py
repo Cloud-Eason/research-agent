@@ -140,8 +140,18 @@ def test_rerank_reorders_and_limits_candidates() -> None:
     retriever, _, _ = make_retriever(cfg, reranker)
     result = retriever.retrieve("q")
     assert len(reranker.seen) == 3  # only the top fused candidates are reranked
+    assert ids(result.stages["candidates"]) == reranker.seen
     assert result.hits[0].channel == "rerank"
     assert ids(result.hits)[0] in reranker.seen
+
+
+def test_single_channel_rerank_records_candidates() -> None:
+    reranker = FakeReranker({})
+    cfg = RetrievalConfig(use_bm25=False, rerank_candidates=2)
+    retriever, _, _ = make_retriever(cfg, reranker)
+    result = retriever.retrieve("q")
+    assert "fused" not in result.stages
+    assert ids(result.stages["candidates"]) == reranker.seen == ["a", "b"]
 
 
 def test_min_rerank_score_filters_irrelevant_hits() -> None:

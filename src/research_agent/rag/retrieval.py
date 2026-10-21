@@ -125,8 +125,12 @@ class HybridRetriever:
 
         if cfg.use_rerank:
             assert self.reranker is not None
+            # Exactly what the reranker sees. The cut counts chunks, not documents,
+            # so finer chunking leaves fewer distinct documents in the pool.
+            pool = candidates[: cfg.rerank_candidates]
+            result.stages["candidates"] = pool
             with _timer(result, "rerank"):
-                reranked = self.reranker.rerank(query, candidates[: cfg.rerank_candidates])
+                reranked = self.reranker.rerank(query, pool)
             result.stages["reranked"] = reranked
             if cfg.min_rerank_score is not None:
                 reranked = [h for h in reranked if h.score >= cfg.min_rerank_score]
