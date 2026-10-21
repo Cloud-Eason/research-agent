@@ -29,6 +29,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
+from research_agent import crash
 from research_agent.agent.prompts import (
     AGENT_SYSTEM_PROMPT,
     FINALIZE_SYSTEM_PROMPT,
@@ -92,6 +93,7 @@ class AgentNodes:
         response = self.deps.agent_llm.invoke([system, *state.get("messages", [])])
         if not isinstance(response, AIMessage):
             raise TypeError(f"agent LLM returned {type(response).__name__}, expected AIMessage")
+        crash.maybe_crash("agent")  # demo hook: no-op unless CRASH_AT=agent:N
         return {
             "messages": [response],
             "step": step + 1,

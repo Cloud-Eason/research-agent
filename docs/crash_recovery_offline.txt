@@ -1,0 +1,51 @@
+
+[crash] simulated crash at tool:2 -> os._exit(137)
+  [1] web_search({'query': 'Scott Derrickson nationality'})
+  [2] web_search({'query': 'Ed Wood nationality'})
+  [3] web_search({'query': 'Derrickson Wood both American'})
+
+Yes. Both are American filmmakers [S1][S3].
+
+Sources:
+[S1] Scott Derrickson nationality (0) — https://example.org/0
+[S3] Ed Wood nationality (0) — https://example.org/0
+
+short answer: yes
+steps=3  latency=0.5s  thread tokens in/out=0/0
+[child] tool cache hits=2 misses=1
+thread_id=demo-26267fbd  mode=offline (scripted LLM + fake search)  crash_at=tool:2
+
+=== 1. run until the simulated crash ===
+
+[parent] child exited with code 137
+
+=== 2. state left in Redis after the crash ===
+  checkpoints: 4 (newest first)
+    step=  2  source=loop   id=...fdb41939  pending_writes=0
+    step=  1  source=loop   id=...ffe45383  pending_writes=4
+    step=  0  source=loop   id=...9b54cf42  pending_writes=4
+    step= -1  source=input  id=...74f25114  pending_writes=2
+  cached tool results: 2
+  external calls so far: 2
+    - {'tool': 'web_search', 'query': 'Scott Derrickson nationality'}
+    - {'tool': 'web_search', 'query': 'Ed Wood nationality'}
+
+=== 3. restart and resume the same thread ===
+
+=== 4. verify ===
+  checkpoints: 9 (newest first)
+    step=  7  source=loop   id=...d0e2010b  pending_writes=0
+    step=  6  source=loop   id=...d86d0b8f  pending_writes=4
+    step=  5  source=loop   id=...5a26666e  pending_writes=4
+    step=  4  source=loop   id=...6d17d30d  pending_writes=3
+    step=  3  source=loop   id=...1efd6c2a  pending_writes=4
+    step=  2  source=loop   id=...fdb41939  pending_writes=3
+  cached tool results: 3
+  external calls so far: 3
+    - {'tool': 'web_search', 'query': 'Scott Derrickson nationality'}
+    - {'tool': 'web_search', 'query': 'Ed Wood nationality'}
+    - {'tool': 'web_search', 'query': 'Derrickson Wood both American'}
+  external calls: 2 before crash, 1 after resume, 3 total for 3 distinct tool calls
+  [PASS] no tool call executed twice
+  [PASS] resumed, not restarted (one input checkpoint)
+  [PASS] final answer produced

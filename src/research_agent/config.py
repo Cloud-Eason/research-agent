@@ -7,6 +7,7 @@ individual fields rather than defining a second configuration system.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -78,6 +79,13 @@ class Settings(BaseSettings):
     reranker_model: str = "BAAI/bge-reranker-base"
     reranker_device: str = "cpu"
     reranker_max_length: int = Field(default=512, ge=32)
+
+    # --- Persistence (Phase 3) ---
+    checkpointer: Literal["memory", "redis"] = "redis"
+    redis_url: str = "redis://localhost:6379/0"
+    checkpoint_ttl_s: int = Field(default=86_400, ge=60)  # sliding, refreshed on every write
+    checkpoint_keep_last: int = Field(default=20, ge=1)
+    tool_cache_ttl_s: int = Field(default=86_400, ge=60)
 
     @model_validator(mode="after")
     def _check_chunking(self) -> Settings:
