@@ -98,3 +98,6 @@ markers = ["integration: needs running Docker services (Milvus, Redis)"]
 [tool.coverage.run]
 source = ["src/research_agent"]
 branch = true
+
+[project.scripts]
+research-agent = "research_agent.cli:main"

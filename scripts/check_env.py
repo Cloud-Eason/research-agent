@@ -12,7 +12,7 @@ def check(name: str, fn) -> bool:
         detail = fn()
         print(f"[OK]   {name}: {detail}")
         return True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[FAIL] {name}: {e}")
         return False
 
@@ -29,11 +29,25 @@ def redis_ping() -> str:
     return f"redis {r.info()['redis_version']}"
 
 
-def milvus_ping() -> str:
-    from pymilvus import MilvusClient
-    c = MilvusClient(uri=os.environ["MILVUS_URI"])
-    return f"server {c.get_server_version()}, collections={c.list_collections()}"
+# def milvus_ping() -> str:
+#     from pymilvus import MilvusClient
+#     c = MilvusClient(uri=os.environ["MILVUS_URI"])
+#     return f"server {c.get_server_version()}, collections={c.list_collections()}"
 
+def milvus_ping() -> str:
+    import time
+
+    from pymilvus import MilvusClient
+
+    last_error: Exception | None = None
+    for _ in range(12):  # 最多等待约 60 秒
+        try:
+            c = MilvusClient(uri=os.environ["MILVUS_URI"], timeout=5)
+            return f"server {c.get_server_version()}, collections={c.list_collections()}"
+        except Exception as e:
+            last_error = e
+            time.sleep(5)
+    raise RuntimeError(f"Milvus not ready after 60s: {last_error}")
 
 def deepseek_call() -> str:
     from openai import OpenAI

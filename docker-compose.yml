@@ -1,4 +1,4 @@
-version: '3.5'
+# version: '3.5'
 
 services:
   etcd:
@@ -38,7 +38,7 @@ services:
 
   standalone:
     container_name: milvus-standalone
-    image: milvusdb/milvus:v2.6.24
+    image: milvusdb/milvus:v2.6.25
     command: ["milvus", "run", "standalone"]
     security_opt:
     - seccomp:unconfined
@@ -77,14 +77,14 @@ services:
 
   attu:
     container_name: milvus-attu
-    image: zilliz/attu:latest
+    image: zilliz/attu:v3.0.0
     environment:
       MILVUS_URL: standalone:19530
     ports:
       - "8000:3000"
     depends_on:
       - standalone
-      
+
 networks:
   default:
     name: milvus
