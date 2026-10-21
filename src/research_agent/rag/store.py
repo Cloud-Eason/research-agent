@@ -63,6 +63,16 @@ class MilvusStore:
             )
         client.load_collection(self.collection)
 
+    def open_existing(self) -> None:
+        """Load a collection for querying; fail clearly if it was never ingested."""
+        if not self._client.has_collection(self.collection):
+            raise LookupError(
+                f"Milvus collection '{self.collection}' does not exist; run scripts/ingest.py "
+                "with the same embedding model and chunk settings first"
+            )
+        self._check_dim()
+        self._client.load_collection(self.collection)
+
     def drop(self) -> None:
         if self._client.has_collection(self.collection):
             self._client.drop_collection(self.collection)

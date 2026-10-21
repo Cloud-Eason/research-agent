@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from research_agent.agent.state import SearchHit, SourceDict
+from research_agent.rag.models import ScoredChunk
+from research_agent.rag.retrieval import RetrievalResult
 
 
 class SearchBackend(Protocol):
@@ -92,6 +94,48 @@ def make_web_search_tool(backend: SearchBackend, max_results: int) -> ToolSpec:
             "numbered sources you can cite."
         ),
         args_model=WebSearchArgs,
+        run=_run,
+    )
+
+
+class KbSearchArgs(BaseModel):
+    query: str = Field(
+        min_length=1,
+        description="A focused query covering one sub-question; keywords and names help.",
+    )
+    top_k: int = Field(default=5, ge=1, le=10, description="Number of passages to return.")
+
+
+class KbRetriever(Protocol):
+    def retrieve(self, query: str, top_n: int | None = None) -> RetrievalResult: ...
+
+
+def kb_hit_to_search_hit(hit: ScoredChunk) -> SearchHit:
+    chunk = hit.chunk
+    page = f" (p.{chunk.page})" if chunk.page is not None else ""
+    location = f"{chunk.source}#page={chunk.page}" if chunk.page is not None else chunk.source
+    return SearchHit(
+        title=f"{chunk.title}{page}",
+        location=location,
+        content=chunk.text,
+        score=hit.score,
+        ref=chunk.chunk_id,
+    )
+
+
+def make_kb_search_tool(retriever: KbRetriever) -> ToolSpec:
+    def _run(args: KbSearchArgs) -> list[SearchHit]:
+        result = retriever.retrieve(args.query, top_n=args.top_k)
+        return [kb_hit_to_search_hit(h) for h in result.hits]
+
+    return ToolSpec(
+        name="kb_search",
+        description=(
+            "Search the local knowledge base of ingested documents (papers, reports, "
+            "reference pages) with hybrid keyword + semantic retrieval. Returns numbered "
+            "passages you can cite."
+        ),
+        args_model=KbSearchArgs,
         run=_run,
     )
 

@@ -32,6 +32,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     common.add_argument("--thread-id", default=None, help="conversation id (default: random)")
     common.add_argument("--max-steps", type=int, default=None, help="override MAX_AGENT_STEPS")
     common.add_argument("-v", "--verbose", action="store_true", help="show tool trajectory")
+    common.add_argument("--no-web", action="store_true", help="disable web_search")
+    common.add_argument("--no-kb", action="store_true", help="disable kb_search")
 
     ask = sub.add_parser("ask", parents=[common], help="answer one question")
     ask.add_argument("question")
@@ -64,13 +66,19 @@ def _run_turn(graph: Any, question: str, config: dict[str, Any], verbose: bool) 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     settings = get_settings()
+    updates: dict[str, Any] = {}
     if args.max_steps is not None:
-        settings = settings.model_copy(update={"max_agent_steps": args.max_steps})
+        updates["max_agent_steps"] = args.max_steps
+    if args.no_web:
+        updates["enable_web_search"] = False
+    if args.no_kb:
+        updates["enable_kb_search"] = False
+    settings = settings.model_copy(update=updates)
 
     try:
         deps = build_default_deps(settings)
-    except ConfigError as exc:
-        print(f"config error: {exc}", file=sys.stderr)
+    except (ConfigError, LookupError) as exc:
+        print(f"setup error: {exc}", file=sys.stderr)
         return 2
 
     graph = build_graph(deps, checkpointer=InMemorySaver())
@@ -79,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         "configurable": {"thread_id": thread_id},
         "recursion_limit": recursion_limit_for(settings.max_agent_steps),
     }
-    print(f"thread_id={thread_id}  model={settings.llm_model}")
+    print(f"thread_id={thread_id}  model={settings.llm_model}  tools={sorted(deps.tools)}")
 
     if args.command == "ask":
         _run_turn(graph, args.question, config, args.verbose)

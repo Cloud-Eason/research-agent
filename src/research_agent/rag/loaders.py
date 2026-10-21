@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from research_agent.rag.models import Document, make_doc_id
 
@@ -19,10 +20,11 @@ def load_pdf(path: Path) -> list[Document]:
     """One Document per non-empty page, so citations can point at page numbers."""
     import pymupdf
 
+    open_pdf: Any = pymupdf.open  # pymupdf ships untyped constructors
     source = str(path.resolve())
     doc_id = make_doc_id(source)
     documents: list[Document] = []
-    with pymupdf.open(path) as pdf:
+    with open_pdf(path) as pdf:
         meta = pdf.metadata or {}
         title = str(meta.get("title") or "").strip() or path.stem
         for index, page in enumerate(pdf):

@@ -58,10 +58,33 @@ class Settings(BaseSettings):
     kb_collection: str | None = None  # explicit name overrides the derived one
     bm25_analyzer: str = "standard"  # "chinese" for Chinese corpora
 
+    # --- Agent tools (routing ablations switch these) ---
+    enable_web_search: bool = True
+    enable_kb_search: bool = True
+
+    # --- Hybrid retrieval: every stage can be switched off for ablations ---
+    retrieval_use_dense: bool = True
+    retrieval_use_bm25: bool = True
+    retrieval_use_rerank: bool = True
+    retrieval_dense_top_k: int = Field(default=20, ge=1, le=200)
+    retrieval_bm25_top_k: int = Field(default=20, ge=1, le=200)
+    retrieval_rrf_k: int = Field(default=60, ge=1)
+    retrieval_rerank_candidates: int = Field(default=20, ge=1, le=200)
+    retrieval_final_top_n: int = Field(default=5, ge=1, le=50)
+    # Drop reranked hits below this score; None keeps everything.
+    retrieval_min_rerank_score: float | None = None
+
+    # --- Reranker (cross-encoder) ---
+    reranker_model: str = "BAAI/bge-reranker-base"
+    reranker_device: str = "cpu"
+    reranker_max_length: int = Field(default=512, ge=32)
+
     @model_validator(mode="after")
     def _check_chunking(self) -> Settings:
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be smaller than chunk_size")
+        if not (self.retrieval_use_dense or self.retrieval_use_bm25):
+            raise ValueError("enable at least one of retrieval_use_dense / retrieval_use_bm25")
         return self
 
     def require_secret(self, name: str) -> str:

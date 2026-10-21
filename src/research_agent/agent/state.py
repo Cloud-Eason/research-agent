@@ -10,7 +10,7 @@ matters in Phase 3 when state is read back from Redis.
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, NotRequired, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
@@ -24,6 +24,8 @@ class SearchHit(BaseModel):
     location: str  # URL for web results; e.g. "paper.pdf#p3" for KB results
     content: str
     score: float | None = None
+    # Stable id of the underlying item (KB chunk_id); used for Recall@k in eval.
+    ref: str | None = None
 
 
 class SourceDict(TypedDict):
@@ -36,6 +38,7 @@ class SourceDict(TypedDict):
     location: str
     content: str
     score: float | None
+    ref: NotRequired[str]  # chunk_id for KB hits, URL for web hits
 
 
 class FinalAnswerDraft(BaseModel):

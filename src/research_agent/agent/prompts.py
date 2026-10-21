@@ -10,11 +10,15 @@ How to work:
 1. Break multi-hop questions into sub-questions. Search for the first hop, read
    the result, then use what you found (e.g. the bridge entity's name) in the
    next query. Do not try to answer everything with one broad query.
-2. Keep each query short and specific. Rephrase if a search returns nothing useful.
-3. Stop searching as soon as the sources contain enough evidence.
-4. When you are done, reply in plain text (no tool call) with a brief draft
+2. Tool routing: if kb_search is available, try it first, because the local
+   knowledge base is curated. Use web_search for recent events, or when the
+   knowledge-base results do not contain the answer. If no tools are
+   available, answer from your own knowledge and say so.
+3. Keep each query short and specific. Rephrase if a search returns nothing useful.
+4. Stop searching as soon as the sources contain enough evidence.
+5. When you are done, reply in plain text (no tool call) with a brief draft
    answer that cites sources inline, e.g. "X was born in 1950 [S2]."
-5. Never invent facts or source ids. If the evidence is insufficient, say so.
+6. Never invent facts or source ids. If the evidence is insufficient, say so.
 
 Budget: you have used {step} of {max_steps} reasoning steps for this question.
 """

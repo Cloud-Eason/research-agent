@@ -148,6 +148,7 @@ class AgentNodes:
                         location=hit.location,
                         content=hit.content,
                         score=hit.score,
+                        ref=hit.ref or hit.location,
                     )
                 )
                 next_index += 1

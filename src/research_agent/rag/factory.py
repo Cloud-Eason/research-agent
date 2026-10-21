@@ -8,6 +8,8 @@ import re
 from research_agent.config import Settings
 from research_agent.rag.chunking import RecursiveChunker
 from research_agent.rag.embedding import SentenceTransformerEmbedder
+from research_agent.rag.reranker import CrossEncoderReranker
+from research_agent.rag.retrieval import HybridRetriever, RetrievalConfig
 from research_agent.rag.store import MilvusStore
 
 log = logging.getLogger(__name__)
@@ -53,4 +55,44 @@ def build_store(settings: Settings, dim: int, collection: str | None = None) -> 
         dim=dim,
         token=settings.milvus_token.get_secret_value(),
         analyzer=settings.bm25_analyzer,
+    )
+
+
+def retrieval_config(settings: Settings) -> RetrievalConfig:
+    return RetrievalConfig(
+        use_dense=settings.retrieval_use_dense,
+        use_bm25=settings.retrieval_use_bm25,
+        use_rerank=settings.retrieval_use_rerank,
+        dense_top_k=settings.retrieval_dense_top_k,
+        bm25_top_k=settings.retrieval_bm25_top_k,
+        rrf_k=settings.retrieval_rrf_k,
+        rerank_candidates=settings.retrieval_rerank_candidates,
+        final_top_n=settings.retrieval_final_top_n,
+        min_rerank_score=settings.retrieval_min_rerank_score,
+    )
+
+
+def build_reranker(settings: Settings) -> CrossEncoderReranker:
+    return CrossEncoderReranker(
+        settings.reranker_model,
+        device=settings.reranker_device,
+        max_length=settings.reranker_max_length,
+    )
+
+
+def build_retriever(settings: Settings, collection: str | None = None) -> HybridRetriever:
+    """Hybrid retriever over an already-ingested collection.
+
+    Models are only loaded for the stages that are switched on, so a BM25-only
+    ablation run does not pay for the reranker.
+    """
+    config = retrieval_config(settings)
+    embedder = build_embedder(settings)  # needed for the collection's vector dim
+    store = build_store(settings, embedder.dim, collection=collection)
+    store.open_existing()
+    return HybridRetriever(
+        store,
+        config,
+        embedder=embedder if config.use_dense else None,
+        reranker=build_reranker(settings) if config.use_rerank else None,
     )

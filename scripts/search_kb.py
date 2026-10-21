@@ -1,52 +1,63 @@
-"""Query the knowledge base through each retrieval channel separately.
+"""Inspect every retrieval stage for one query.
 
-    uv run python scripts/search_kb.py "what is a checkpointer" --k 5
-    uv run python scripts/search_kb.py "BM25 scoring" --mode bm25
+    uv run python scripts/search_kb.py "how does checkpointing enable fault tolerance"
+    uv run python scripts/search_kb.py "ReAct" --no-rerank --k 3
+    uv run python scripts/search_kb.py "query" --no-dense      # BM25 only
 
-Phase 2a sanity check; Phase 2b adds the fused + reranked retriever.
+Prints the dense, BM25, fused and reranked lists with per-stage latency, which
+is the quickest way to see what each stage contributes.
 """
 
 from __future__ import annotations
 
 import argparse
-import time
+from typing import Any
 
 from research_agent.config import get_settings
-from research_agent.rag.factory import build_embedder, build_store
+from research_agent.rag.factory import build_retriever
 from research_agent.rag.models import ScoredChunk
 
 
-def _show(title: str, hits: list[ScoredChunk], elapsed: float) -> None:
-    print(f"\n=== {title}  ({elapsed * 1000:.0f} ms) ===")
-    for rank, hit in enumerate(hits, 1):
+def _show(name: str, hits: list[ScoredChunk], k: int, ms: float | None) -> None:
+    timing = f"  ({ms:.0f} ms)" if ms is not None else ""
+    print(f"\n=== {name}{timing} ===")
+    for rank, hit in enumerate(hits[:k], 1):
         c = hit.chunk
-        where = f"{c.source}" + (f" p.{c.page}" if c.page else "")
-        preview = " ".join(c.text.split())[:160]
-        print(f"{rank:>2}. {hit.score:.4f}  [{c.title}] {where}\n    {preview}")
+        where = c.source.rsplit("/", 1)[-1] + (f" p.{c.page}" if c.page else "")
+        body = " ".join(c.text.split())
+        if body.startswith(c.title):
+            body = body[len(c.title) :].strip()
+        print(f"{rank:>2}. {hit.score:8.4f}  {where}  [{c.chunk_id}]\n    {body[:150]}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("query")
-    parser.add_argument("--k", type=int, default=5)
-    parser.add_argument("--mode", choices=["dense", "bm25", "both"], default="both")
+    parser.add_argument("--k", type=int, default=5, help="rows to print per stage")
     parser.add_argument("--collection", default=None)
+    parser.add_argument("--no-dense", action="store_true")
+    parser.add_argument("--no-bm25", action="store_true")
+    parser.add_argument("--no-rerank", action="store_true")
+    parser.add_argument("--min-score", type=float, default=None, help="rerank score cut-off")
     args = parser.parse_args()
 
-    settings = get_settings()
-    embedder = build_embedder(settings)
-    store = build_store(settings, embedder.dim, collection=args.collection)
-    store.ensure_collection()
-    print(f"collection={store.collection}  rows={store.count()}")
+    updates: dict[str, Any] = {
+        "retrieval_use_dense": not args.no_dense,
+        "retrieval_use_bm25": not args.no_bm25,
+        "retrieval_use_rerank": not args.no_rerank,
+        "retrieval_min_rerank_score": args.min_score,
+    }
+    settings = get_settings().model_copy(update=updates)
+    retriever = build_retriever(settings, collection=args.collection)
+    store: Any = retriever.store
+    print(f"collection={store.collection}  pipeline={retriever.config.label}")
 
-    if args.mode in ("dense", "both"):
-        t = time.perf_counter()
-        hits = store.search_dense(embedder.embed_query(args.query), args.k)
-        _show("dense", hits, time.perf_counter() - t)
-    if args.mode in ("bm25", "both"):
-        t = time.perf_counter()
-        hits = store.search_bm25(args.query, args.k)
-        _show("bm25", hits, time.perf_counter() - t)
+    result = retriever.retrieve(args.query, top_n=args.k)
+    for stage in ("dense", "bm25", "fused", "reranked"):
+        if stage in result.stages:
+            timing_key = {"fused": "fuse", "reranked": "rerank"}.get(stage, stage)
+            _show(stage, result.stages[stage], args.k, result.timings_ms.get(timing_key))
+    _show("final", result.hits, args.k, sum(result.timings_ms.values()))
     return 0
 
 
