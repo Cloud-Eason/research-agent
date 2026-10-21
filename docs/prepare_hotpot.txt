@@ -1,0 +1,13 @@
+$ uv run python scripts/prepare_hotpot.py   # commit 0613b4f, 2026-10-21
+
+Using the latest cached version of the dataset since hotpotqa/hotpot_qa couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'distractor' at /home/eason/.cache/huggingface/datasets/hotpotqa___hotpot_qa/distractor/0.0.0/1908d6afbbead072334abe2965f91bd2709910ab (last modified on Mon Oct 19 18:08:47 2026).
+sampled 500 examples (seed=42) -> data/eval/hotpotqa_validation_500_s42.jsonl
+  bridge=406  comparison=94
+corpus: 4955 unique paragraphs
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (678 > 512). Running this sequence through the model will result in indexing errors
+  paragraph length (tokens, first 2000): median=107 p90=204  max=701
+  hotpot_bge_small_en_v1_5_c64_o8: 13369 chunks from 4955 paragraphs in 473s (truncated=0, rows=13369)
+  hotpot_bge_small_en_v1_5_c128_o16: 7179 chunks from 4955 paragraphs in 431s (truncated=0, rows=7179)
+  hotpot_bge_small_en_v1_5_c256_o32: 5166 chunks from 4955 paragraphs in 505s (truncated=0, rows=5166)
+
