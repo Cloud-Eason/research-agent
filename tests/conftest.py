@@ -77,9 +77,11 @@ def make_deps() -> Callable[..., AgentDeps]:
         backend: FakeSearchBackend | None = None,
         max_steps: int = 5,
     ) -> AgentDeps:
-        drafts = draft if isinstance(draft, list) else [
-            draft or FinalAnswerDraft(answer="done", short_answer="done")
-        ]
+        drafts = (
+            draft
+            if isinstance(draft, list)
+            else [draft or FinalAnswerDraft(answer="done", short_answer="done")]
+        )
         backend = backend or FakeSearchBackend()
         tool = make_web_search_tool(backend, max_results=5)
         return AgentDeps(

@@ -1,14 +1,14 @@
 """Application settings, loaded from environment variables and `.env`.
 
-Only Phase 1 fields live here for now; later phases add retrieval, Redis and
-eval settings to the same object so there is a single source of configuration.
+One Settings object for the whole project; ablation configs (Phase 4) override
+individual fields rather than defining a second configuration system.
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,12 +39,33 @@ class Settings(BaseSettings):
     # --- Agent loop ---
     max_agent_steps: int = Field(default=8, ge=1, le=50)
 
-    def require_secret(self, name: str) -> str:
-        """Return a secret's value or fail fast with a readable error.
+    # --- Embedding ---
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_device: str = "cpu"
+    # bge v1.5 recommends this prefix for short queries against passages.
+    embedding_query_instruction: str = "Represent this sentence for searching relevant passages: "
+    embedding_batch_size: int = Field(default=32, ge=1)
 
-        Secrets default to empty so that tests and offline tooling can build a
-        Settings object; code paths that actually call external APIs use this.
-        """
+    # --- Chunking (measured in the embedding model's own tokens) ---
+    chunk_size: int = Field(default=256, ge=16)
+    chunk_overlap: int = Field(default=32, ge=0)
+    chunk_prepend_title: bool = True
+
+    # --- Milvus ---
+    milvus_uri: str = "http://localhost:19530"
+    milvus_token: SecretStr = Field(default=SecretStr(""))
+    kb_collection_prefix: str = "kb"
+    kb_collection: str | None = None  # explicit name overrides the derived one
+    bm25_analyzer: str = "standard"  # "chinese" for Chinese corpora
+
+    @model_validator(mode="after")
+    def _check_chunking(self) -> Settings:
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("chunk_overlap must be smaller than chunk_size")
+        return self
+
+    def require_secret(self, name: str) -> str:
+        """Return a secret's value or fail fast with a readable error."""
         value = getattr(self, name)
         assert isinstance(value, SecretStr)
         secret = value.get_secret_value()

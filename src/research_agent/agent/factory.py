@@ -35,9 +35,7 @@ def build_tools(settings: Settings) -> list[ToolSpec]:
     return [make_web_search_tool(backend, settings.web_search_max_results)]
 
 
-def build_default_deps(
-    settings: Settings, executor: ToolExecutor | None = None
-) -> AgentDeps:
+def build_default_deps(settings: Settings, executor: ToolExecutor | None = None) -> AgentDeps:
     llm = build_chat_model(settings)
     tools = build_tools(settings)
     return AgentDeps(

@@ -271,9 +271,7 @@ def tool_calls_in_last_turn(messages: Sequence[AnyMessage]) -> list[dict[str, An
     return calls
 
 
-def build_graph(
-    deps: AgentDeps, checkpointer: BaseCheckpointSaver[Any] | None = None
-) -> Any:
+def build_graph(deps: AgentDeps, checkpointer: BaseCheckpointSaver[Any] | None = None) -> Any:
     nodes = AgentNodes(deps)
     graph = StateGraph(AgentState)
     graph.add_node("start", nodes.start)

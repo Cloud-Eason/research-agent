@@ -1,4 +1,5 @@
 """Verify that every external dependency is reachable."""
+
 import os
 import sys
 
@@ -24,6 +25,7 @@ def py_version() -> str:
 
 def redis_ping() -> str:
     import redis
+
     r = redis.from_url(os.environ["REDIS_URL"])
     r.ping()
     return f"redis {r.info()['redis_version']}"
@@ -33,6 +35,7 @@ def redis_ping() -> str:
 #     from pymilvus import MilvusClient
 #     c = MilvusClient(uri=os.environ["MILVUS_URI"])
 #     return f"server {c.get_server_version()}, collections={c.list_collections()}"
+
 
 def milvus_ping() -> str:
     import time
@@ -49,10 +52,11 @@ def milvus_ping() -> str:
             time.sleep(5)
     raise RuntimeError(f"Milvus not ready after 60s: {last_error}")
 
+
 def deepseek_call() -> str:
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"],
-                    base_url=os.environ["LLM_BASE_URL"])
+
+    client = OpenAI(api_key=os.environ["DEEPSEEK_API_KEY"], base_url=os.environ["LLM_BASE_URL"])
     resp = client.chat.completions.create(
         model=os.environ["LLM_MODEL"],
         messages=[{"role": "user", "content": "Reply with: pong"}],
@@ -63,12 +67,14 @@ def deepseek_call() -> str:
 
 def tavily_call() -> str:
     from tavily import TavilyClient
+
     res = TavilyClient(api_key=os.environ["TAVILY_API_KEY"]).search("LangGraph", max_results=1)
     return res["results"][0]["url"]
 
 
 def embed_model() -> str:
     from sentence_transformers import CrossEncoder, SentenceTransformer
+
     emb = SentenceTransformer("BAAI/bge-small-en-v1.5")
     vec = emb.encode(["hello"])
     rr = CrossEncoder("BAAI/bge-reranker-base")

@@ -16,8 +16,13 @@ from tests.conftest import FakeSearchBackend
 
 def _source(i: int) -> SourceDict:
     return SourceDict(
-        id=f"S{i}", tool="web_search", query="q", title=f"T{i}",
-        location=f"https://e.com/{i}", content=f"body {i}", score=None,
+        id=f"S{i}",
+        tool="web_search",
+        query="q",
+        title=f"T{i}",
+        location=f"https://e.com/{i}",
+        content=f"body {i}",
+        score=None,
     )
 
 
