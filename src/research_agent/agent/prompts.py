@@ -30,11 +30,12 @@ sources listed below and the conversation so far.
 Rules:
 - `answer`: a complete, concise answer with inline citation markers like [S1]
   after each supported claim. Cite only ids that appear in the source list.
-- `short_answer`: the minimal answer span only (an entity, date, number, or
-  "yes"/"no"). No sentence, no citation markers. Use "unknown" if the sources do
-  not support an answer.
+- `short_answer`: the shortest span that answers the question, with no sentence
+  and no citation markers. Examples: "London" (not "London, England"),
+  "Christopher Nolan" (not "director Christopher Nolan"), "1998", "yes", "no".
+  Use "unknown" only if you cannot support any answer.
 - `cited_source_ids`: every source id you cited.
-{limit_note}
+{limit_note}{mode_note}
 Sources:
 {sources}
 """
@@ -42,4 +43,10 @@ Sources:
 STEP_LIMIT_NOTE = (
     "- The research step limit was reached before the agent finished. Answer from "
     "the evidence gathered so far and state any uncertainty.\n"
+)
+
+NO_TOOLS_NOTE = (
+    "- No retrieval tools were available for this question. Answer from your own "
+    'knowledge, leave `cited_source_ids` empty, and use "unknown" only if you '
+    "genuinely do not know.\n"
 )

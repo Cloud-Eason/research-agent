@@ -33,6 +33,7 @@ from research_agent import crash
 from research_agent.agent.prompts import (
     AGENT_SYSTEM_PROMPT,
     FINALIZE_SYSTEM_PROMPT,
+    NO_TOOLS_NOTE,
     STEP_LIMIT_NOTE,
 )
 from research_agent.agent.state import (
@@ -188,6 +189,9 @@ class AgentNodes:
             SystemMessage(
                 FINALIZE_SYSTEM_PROMPT.format(
                     limit_note=STEP_LIMIT_NOTE if hit_limit else "",
+                    # Without tools the "sources only" rule would force "unknown" and
+                    # make the no-retrieval baseline meaninglessly weak.
+                    mode_note="" if self.deps.tools else NO_TOOLS_NOTE,
                     sources=format_sources(sources) or "(no sources retrieved)",
                 )
             ),
