@@ -25,6 +25,7 @@ from research_agent.eval.metrics import (
     exact_match,
     f1_score,
     recall_at_k,
+    sentences_all_found,
     trajectory_metrics,
 )
 from research_agent.eval.records import completed_qids
@@ -41,9 +42,8 @@ def score_agent_result(
     calls = tool_calls_in_last_turn(result["messages"])
     gold_titles = list(example.supporting_titles)
     # Evidence the agent actually retrieved, over all of its (rewritten) queries.
-    kb_titles = dedupe_titles(
-        s["title"] for s in result.get("sources", []) if s["tool"] == "kb_search"
-    )
+    kb_sources = [s for s in result.get("sources", []) if s["tool"] == "kb_search"]
+    kb_titles = dedupe_titles(s["title"] for s in kb_sources)
     usage = result.get("token_usage", {})
     return {
         "qid": example.qid,
@@ -61,6 +61,9 @@ def score_agent_result(
         "n_invalid_citations": len(final.invalid_citation_ids),
         "evidence_recall": recall_at_k(kb_titles, gold_titles, len(kb_titles)),
         "evidence_all_found": all_found_at_k(kb_titles, gold_titles, len(kb_titles)),
+        "evidence_sentences_all_found": sentences_all_found(
+            example.supporting_sentences(), [s["content"] for s in kb_sources]
+        ),
         "input_tokens": int(usage.get("input_tokens", 0)),
         "output_tokens": int(usage.get("output_tokens", 0)),
         "llm_calls": int(usage.get("llm_calls", 0)),

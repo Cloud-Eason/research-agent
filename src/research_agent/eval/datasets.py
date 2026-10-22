@@ -41,6 +41,17 @@ class EvalExample:
     supporting_facts: tuple[tuple[str, int], ...]
     paragraphs: tuple[Paragraph, ...]
 
+    def supporting_sentences(self) -> list[str]:
+        """The gold supporting sentences. A few HotpotQA facts point past the end of
+        their paragraph (annotation errors); those are skipped."""
+        by_title = {p.title: p.sentences for p in self.paragraphs}
+        out = []
+        for title, idx in self.supporting_facts:
+            sentences = by_title.get(title, ())
+            if 0 <= idx < len(sentences):
+                out.append(sentences[idx])
+        return out
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "qid": self.qid,

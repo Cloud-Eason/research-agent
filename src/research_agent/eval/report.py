@@ -56,6 +56,8 @@ def summarize_agent(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "sequence_ok": _rate(ok, "sequence_ok"),
         "evidence_recall": _mean([r["evidence_recall"] for r in ok]),
         "evidence_all_found": _mean([r["evidence_all_found"] for r in ok]),
+        # Absent from records scored before this metric existed.
+        "evidence_sentences": _rate(ok, "evidence_sentences_all_found"),
         "bridge_in_first": _rate(ok, "bridge_in_first_query"),
         "bridge_in_later": _rate(ok, "bridge_in_later_query"),
         "step_limit": _rate(ok, "hit_step_limit"),
@@ -75,6 +77,7 @@ AGENT_COLUMNS: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
     ("F1", lambda s: f"{_pct(s['f1'])} [{_pct(s['f1_ci'][0])}, {_pct(s['f1_ci'][1])}]"),
     ("evidence R", lambda s: _pct(s["evidence_recall"])),
     ("evidence all", lambda s: _pct(s["evidence_all_found"])),
+    ("evidence sent", lambda s: _pct(s["evidence_sentences"])),
     ("tool calls", lambda s: f"{s['tool_calls']:.2f}"),
     ("kb first %", lambda s: _pct(s["kb_first"])),
     ("seq ok %", lambda s: _pct(s["sequence_ok"])),
@@ -224,7 +227,12 @@ def write_reports(eval_dir: Path, baseline: str | None = None) -> Path:
             ),
             "",
         ]
-        md += ["EM/F1 in %, with 95% bootstrap confidence intervals.", ""]
+        md += [
+            "EM/F1 in %, with 95% bootstrap confidence intervals. evidence all: every "
+            "supporting paragraph retrieved (by title); evidence sent: every supporting "
+            "sentence appears in a retrieved chunk.",
+            "",
+        ]
         md += [
             "## By question type",
             "",
@@ -237,12 +245,19 @@ def write_reports(eval_dir: Path, baseline: str | None = None) -> Path:
             for name, ok in ok_by_run.items():
                 s = summarize_agent([ok[q] for q in sorted(shared)])
                 subset_rows.append(
-                    [name, str(s["n"]), _pct(s["em"]), _pct(s["f1"]), _pct(s["evidence_all_found"])]
+                    [
+                        name,
+                        str(s["n"]),
+                        _pct(s["em"]),
+                        _pct(s["f1"]),
+                        _pct(s["evidence_all_found"]),
+                        _pct(s["evidence_sentences"]),
+                    ]
                 )
             md += [
                 "## Same questions",
                 "",
-                _md_table(["run", "n", "EM", "F1", "evidence all"], subset_rows),
+                _md_table(["run", "n", "EM", "F1", "evidence all", "evidence sent"], subset_rows),
                 "",
                 "Every run restricted to the qids all runs answered without error.",
                 "",

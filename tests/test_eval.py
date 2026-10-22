@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from research_agent.eval.agent_eval import run_agent_eval
+from research_agent.eval.agent_eval import run_agent_eval, score_agent_result
 from research_agent.eval.datasets import (
     EvalExample,
     build_corpus,
@@ -26,6 +26,7 @@ from research_agent.eval.metrics import (
     f1_score,
     normalize_answer,
     recall_at_k,
+    sentences_all_found,
     trajectory_metrics,
 )
 from research_agent.eval.records import completed_qids, latest_records
@@ -252,7 +253,9 @@ class FakeGraph:
                 "invalid_citation_ids": [],
                 "hit_step_limit": False,
             },
-            "sources": [{"id": "S1", "tool": "kb_search", "title": "Christopher Nolan"}],
+            "sources": [
+                {"id": "S1", "tool": "kb_search", "title": "Christopher Nolan", "content": ""}
+            ],
             "step": 2,
             "token_usage": {"input_tokens": 100, "output_tokens": 10, "llm_calls": 3},
         }
@@ -316,3 +319,58 @@ async def test_agent_report_compares_runs_on_the_same_questions(tmp_path: Path) 
     assert "## Same questions" in summary
     assert "| dense | 1 | 100.0 |" in summary  # restricted to small's single qid
     assert "| small | 1 | 100.0 | 100.0 | 0 | 0 | 1 |" in summary
+
+
+def test_supporting_sentences_skip_out_of_range_facts() -> None:
+    ex = parse_hotpot_row(
+        {**ROW, "supporting_facts": {"title": ["Inception", "Paris"], "sent_id": [1, 5]}}
+    )
+    assert ex.supporting_sentences() == [" by Nolan."]
+
+
+def test_sentence_evidence_is_finer_than_paragraph_evidence() -> None:
+    """The paragraph is split into two chunks and only the half without the
+    supporting sentence is retrieved: found by title, not by sentence."""
+    ex = example()  # supporting: Inception[0], Christopher Nolan[0], Christopher Nolan[1]
+    first_half = "Christopher Nolan\nNolan was born"
+    sources = [
+        {
+            "id": "S1",
+            "tool": "kb_search",
+            "title": "Inception",
+            "content": "Inception\nInception is a film by Nolan.",
+        },
+        {"id": "S2", "tool": "kb_search", "title": "Christopher Nolan", "content": first_half},
+    ]
+    result = {
+        "messages": [HumanMessage(content=ex.question), AIMessage(content="London [S1]")],
+        "final": {
+            "answer": "London",
+            "short_answer": "London",
+            "citations": [],
+            "invalid_citation_ids": [],
+            "hit_step_limit": False,
+        },
+        "sources": sources,
+    }
+    record = score_agent_result(ex, result, 1.0, kb_enabled=True)
+    assert record["evidence_all_found"] == 1.0
+    assert record["evidence_sentences_all_found"] == 0.0
+
+    # The second chunk lost its final period to the ". " split; still counts.
+    sources.append(
+        {
+            "id": "S3",
+            "tool": "kb_search",
+            "title": "Christopher Nolan",
+            "content": "Christopher Nolan\nin   London",
+        }
+    )
+    record = score_agent_result(ex, result, 1.0, kb_enabled=True)
+    assert record["evidence_sentences_all_found"] == 1.0
+
+
+def test_sentences_all_found_needs_every_sentence() -> None:
+    assert sentences_all_found(["a b.", "c"], ["x a  b y", "c"]) == 1.0
+    assert sentences_all_found(["a b.", "d"], ["x a  b y", "c"]) == 0.0
+    assert sentences_all_found([], ["c"]) is None

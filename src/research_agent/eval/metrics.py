@@ -60,6 +60,27 @@ def all_found_at_k(ranked_titles: Sequence[str], gold: Sequence[str], k: int) ->
     return float(bool(gold) and all(g in top for g in gold))
 
 
+def _squash(text: str) -> str:
+    return " ".join(text.split())
+
+
+def sentences_all_found(sentences: Sequence[str], contents: Sequence[str]) -> float | None:
+    """1.0 if every sentence appears verbatim in some retrieved text; None if no sentences.
+
+    Finer than paragraph-level all_found: a paragraph split into several chunks can be
+    "found" by title while the chunk holding the supporting sentence never was.
+    Whitespace is collapsed, and a sentence's final period is not required because the
+    chunker splits on ". " and drops it at chunk ends. A sentence longer than one chunk
+    never appears whole, so the ceiling is below 100% (489/500 questions at c128).
+    """
+    needles = [_squash(s).rstrip(".") for s in sentences]
+    needles = [n for n in needles if n]
+    if not needles:
+        return None
+    haystacks = [_squash(c) for c in contents]
+    return float(all(any(n in h for h in haystacks) for n in needles))
+
+
 # ---- trajectory ----------------------------------------------------------------
 def _core(title: str) -> str:
     """'Ed Wood (film)' -> 'ed wood', for matching titles inside free text."""
