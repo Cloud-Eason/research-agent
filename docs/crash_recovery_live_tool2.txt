@@ -1,0 +1,54 @@
+$ uv run python scripts/crash_recovery_demo.py --crash-at tool:2
+# Captured from the terminal on 2026-10-21 (live DeepSeek + Tavily). Not re-run.
+
+thread_id=demo-7dd31331  mode=live (DeepSeek + Tavily)  crash_at=tool:2
+
+=== 1. run until the simulated crash ===
+
+[crash] simulated crash at tool:2 -> os._exit(137)
+
+[parent] child exited with code 137
+
+=== 2. state left in Redis after the crash ===
+  checkpoints: 4 (newest first)
+    step=  2  source=loop   id=...c38d4fd3  pending_writes=0
+    step=  1  source=loop   id=...b83f99ef  pending_writes=4
+    step=  0  source=loop   id=...6259b0ac  pending_writes=4
+    step= -1  source=input  id=...fbdd5643  pending_writes=2
+  cached tool results: 2
+  external calls so far: 2
+    - {'tool': 'web_search', 'query': 'Scott Derrickson nationality born'}
+    - {'tool': 'web_search', 'query': 'Ed Wood filmmaker nationality born'}
+
+=== 3. restart and resume the same thread ===
+  [1] web_search({'query': 'Scott Derrickson nationality born'})
+  [2] web_search({'query': 'Ed Wood filmmaker nationality born'})
+
+Yes. Both were American. Scott Derrickson (born July 16, 1966, in Denver, Colorado) is an American filmmaker [S1][S2], and Ed Wood (born Edward Davis Wood Jr., October 10, 1924, in Poughkeepsie, New York) was an American filmmaker, actor, and novelist [S6][S7]. So they shared the same nationality: United States.
+
+Sources:
+[S1] Scott Derrickson - Wikipedia — https://en.wikipedia.org/wiki/Scott_Derrickson
+[S2] Scott Derrickson: Movies, TV, and Bio — https://www.primevideo.com/person/Scott-Derrickson/amzn1.dv.gti.8b8c4faf-e6de-4e70-98af-4ace946b8731
+[S6] Ed Wood - Wikipedia — https://en.wikipedia.org/wiki/Ed_Wood
+[S7] Ed Wood | Biography, Films, Plan 9, & Facts | Britannica — https://www.britannica.com/biography/Ed-Wood-Jr
+
+short answer: yes
+steps=2  latency=2.9s  thread tokens in/out=6786/345
+[child] tool cache hits=2 misses=0
+
+=== 4. verify ===
+  checkpoints: 7 (newest first)
+    step=  5  source=loop   id=...228165ba  pending_writes=0
+    step=  4  source=loop   id=...7e3d6fa3  pending_writes=4
+    step=  3  source=loop   id=...d96b16d7  pending_writes=4
+    step=  2  source=loop   id=...c38d4fd3  pending_writes=3
+    step=  1  source=loop   id=...b83f99ef  pending_writes=4
+    step=  0  source=loop   id=...6259b0ac  pending_writes=4
+  cached tool results: 2
+  external calls so far: 2
+    - {'tool': 'web_search', 'query': 'Scott Derrickson nationality born'}
+    - {'tool': 'web_search', 'query': 'Ed Wood filmmaker nationality born'}
+  external calls: 2 before crash, 0 after resume, 2 total for 2 distinct tool calls
+  [PASS] no tool call executed twice
+  [PASS] resumed, not restarted (one input checkpoint)
+  [PASS] final answer produced

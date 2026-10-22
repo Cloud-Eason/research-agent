@@ -16,7 +16,7 @@ Every number in this README comes from a recorded run. Each run directory under
 | A strong reranker helps retrieval | top-5 full-evidence recall (All@5) **78% → 93%**; 16 wins / 1 loss | first 100 questions, dense vs dense + bge-reranker |
 | ...but not the end-to-end answer | 5 retrieval configs within EM 60.0–61.3%, overlapping 95% CIs | 300 questions, all retrieval configs |
 | ...at a large latency cost | p50 latency **3.2 s → 15.6 s** (about 5x) | `dense` vs `dense_bge` |
-| Crash recovery | **0** completed tool calls re-executed after a kill | 4 injected crash points (tests) + offline demo |
+| Crash recovery | **0** completed tool calls re-executed after a kill | 4 injected crash points (tests) + offline and live demos |
 
 Conclusion for this setup: plain dense retrieval is the best default. The reranker's
 retrieval gain is real, but the agent closes most of the gap by issuing several
@@ -274,11 +274,15 @@ restarts on the same `thread_id` with `invoke(None, ...)`, and checks three
 invariants: no tool call executed twice, the run resumed rather than restarted
 (exactly one `input` checkpoint), and a final answer was produced.
 
-Recorded run (`docs/crash_recovery_offline.txt`, scripted LLM and fake search):
+Recorded runs: `docs/crash_recovery_offline.txt` (scripted LLM and fake search), and
+`docs/crash_recovery_live_tool2.txt` / `docs/crash_recovery_live_agent2.txt` (DeepSeek +
+Tavily, captured from the terminal on 2026-10-21, not re-run):
 
 | crash point | external calls before crash | after resume | tool cache hits on resume |
 |---|---|---|---|
 | offline, `tool:2` | 2 | 1 (a new search) | 2 |
+| live, `tool:2` | 2 | 0 | 2 |
+| live, `agent:2` | 2 | 0 | 0 (the LLM step was redone) |
 
 Semantics, stated precisely:
 
@@ -289,7 +293,7 @@ Semantics, stated precisely:
 - **A tool call that was in flight when the process died can run again** (its result
   never reached the cache).
 - **LLM calls are at-least-once.** A crash after the model responds but before the
-  checkpoint is written re-runs that step (`--crash-at agent:2`). LLM calls have no
+  checkpoint is written re-runs that step (the live `agent:2` demo). LLM calls have no
   external side effects, so this costs tokens, not correctness.
 - Runs use `durability="sync"`: each checkpoint is persisted before the next step
   starts. With LangGraph's default async durability, a crash can lose the newest
