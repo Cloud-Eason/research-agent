@@ -44,6 +44,7 @@ class AblationSpec:
     concurrency: int = 4
     top_k: int = 20
     timeout_s: float = 240.0
+    offset: int = 0  # skip the first `offset` examples (a held-out dev split of the sample)
 
 
 def load_ablation(path: Path) -> AblationSpec:
@@ -60,6 +61,7 @@ def load_ablation(path: Path) -> AblationSpec:
         layer=raw["layer"],
         sample_path=Path(raw["dataset"]["sample_path"]),
         n=int(raw["dataset"]["n"]),
+        offset=int(raw["dataset"].get("offset", 0)),
         base=raw.get("base") or {},
         runs=runs,
         concurrency=int(raw.get("concurrency", 4)),
@@ -103,6 +105,7 @@ def write_manifest(
         "git_dirty": bool(_git("status", "--porcelain")),
         "n_examples": len(qids),
         "sample_path": str(spec.sample_path),
+        "sample_offset": spec.offset,
         "sample_sha256": hashlib.sha256("\n".join(qids).encode()).hexdigest(),
         "settings": settings.model_dump(mode="json", exclude=_SECRET_FIELDS),
         "versions": versions,

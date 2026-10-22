@@ -1,0 +1,28 @@
+# Dev split for prompt work: questions 301-500 of the same sample. agent.yaml only
+# evaluates the first 300, so tuning here never touches the reported questions.
+# The KB was built from all 500, so these paragraphs are already indexed.
+# Keep `base` identical to agent.yaml.
+name: agent_dev
+layer: agent
+dataset:
+  sample_path: data/eval/hotpotqa_validation_500_s42.jsonl
+  offset: 300
+  n: 200
+concurrency: 2
+timeout_s: 480
+base:
+  kb_collection_prefix: hotpot
+  enable_web_search: false
+  enable_kb_search: true
+  chunk_size: 128
+  chunk_overlap: 16
+  max_agent_steps: 8
+  retrieval_dense_top_k: 20
+  retrieval_bm25_top_k: 20
+  retrieval_rerank_candidates: 20
+  retrieval_final_top_n: 5
+  retrieval_min_rerank_score: null
+  reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
+runs:
+  - name: hybrid_bge
+    settings: {reranker_model: BAAI/bge-reranker-base}

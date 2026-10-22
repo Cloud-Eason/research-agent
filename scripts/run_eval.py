@@ -39,7 +39,7 @@ def main() -> int:
     args = parser.parse_args()
 
     spec = load_ablation(args.spec)
-    examples = load_examples(spec.sample_path)[: spec.n]
+    examples = load_examples(spec.sample_path)[spec.offset : spec.offset + spec.n]
     selected = set(args.runs.split(",")) if args.runs else None
     runs = [r for r in spec.runs if selected is None or r.name in selected]
     if selected and len(runs) != len(selected):
