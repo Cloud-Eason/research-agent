@@ -14,6 +14,10 @@ base:
   kb_collection_prefix: hotpot
   enable_web_search: false
   enable_kb_search: true
+  # Explicit, so runs do not depend on Settings defaults (now dense-only).
+  retrieval_use_dense: true
+  retrieval_use_bm25: true
+  retrieval_use_rerank: true
   chunk_size: 128
   chunk_overlap: 16
   max_agent_steps: 8

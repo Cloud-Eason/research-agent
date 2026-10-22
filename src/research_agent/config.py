@@ -64,9 +64,11 @@ class Settings(BaseSettings):
     enable_kb_search: bool = True
 
     # --- Hybrid retrieval: every stage can be switched off for ablations ---
+    # Default is dense-only. In agent_v1 (HotpotQA, 300 questions), BM25 and reranking
+    # gave no measurable EM gain over dense (60.7) and bge reranking cost ~5x latency.
     retrieval_use_dense: bool = True
-    retrieval_use_bm25: bool = True
-    retrieval_use_rerank: bool = True
+    retrieval_use_bm25: bool = False
+    retrieval_use_rerank: bool = False
     retrieval_dense_top_k: int = Field(default=20, ge=1, le=200)
     retrieval_bm25_top_k: int = Field(default=20, ge=1, le=200)
     retrieval_rrf_k: int = Field(default=60, ge=1)
