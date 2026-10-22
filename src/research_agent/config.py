@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # --- LLM (DeepSeek, OpenAI-compatible) ---
     deepseek_api_key: SecretStr = Field(default=SecretStr(""))
-    llm_model: str = "deepseek-chat"
+    llm_model: str = "deepseek-flash"
     llm_base_url: str = "https://api.deepseek.com"
     llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     llm_timeout_s: float = Field(default=60.0, gt=0)
