@@ -7,7 +7,7 @@ dataset:
   sample_path: data/eval/hotpotqa_validation_500_s42.jsonl
   n: 300          # the first 300 of the same 500-question sample
 concurrency: 4
-timeout_s: 240
+timeout_s: 480   # bge reranks ~5 s each on CPU, slower with 4 workers
 base:
   kb_collection_prefix: hotpot
   enable_web_search: false
@@ -31,5 +31,6 @@ runs:
   - name: hybrid_minilm
     settings: {}
   - name: hybrid_bge
-    limit: 100
     settings: {reranker_model: BAAI/bge-reranker-base}
+  - name: dense_bge
+    settings: {retrieval_use_bm25: false, reranker_model: BAAI/bge-reranker-base}

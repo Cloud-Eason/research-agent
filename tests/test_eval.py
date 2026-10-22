@@ -29,7 +29,13 @@ from research_agent.eval.metrics import (
     trajectory_metrics,
 )
 from research_agent.eval.records import completed_qids, latest_records
-from research_agent.eval.report import summarize_agent, summarize_retrieval, write_reports
+from research_agent.eval.report import (
+    pick_baseline,
+    summarize_agent,
+    summarize_retrieval,
+    win_loss,
+    write_reports,
+)
 from research_agent.eval.retrieval_eval import run_retrieval_eval, score_retrieval
 from research_agent.rag.models import Chunk, ScoredChunk
 from research_agent.rag.retrieval import HybridRetriever, RetrievalConfig, RetrievalResult
@@ -284,3 +290,29 @@ def test_write_reports_produces_markdown_and_csv(tmp_path: Path) -> None:
     assert "| r1 | dense |" in summary
     assert (tmp_path / "abl" / "summary.csv").exists()
     assert (run_dir / "errors.jsonl").exists()
+
+
+def test_win_loss_counts_only_shared_qids() -> None:
+    base = {"a": 1.0, "b": 0.0, "c": 1.0, "only_base": 1.0}
+    other = {"a": 0.0, "b": 1.0, "c": 1.0, "only_other": 0.0}
+    assert win_loss(base, other) == (1, 1, 1)
+    assert pick_baseline(["hybrid", "dense"]) == "dense"
+    assert pick_baseline(["b", "a"]) == "b"
+    with pytest.raises(ValueError, match="not found"):
+        pick_baseline(["a"], "missing")
+
+
+async def test_agent_report_compares_runs_on_the_same_questions(tmp_path: Path) -> None:
+    exs = [example("q1"), example("q2", question="Where was the director born?")]
+    for name, subset in (("dense", exs), ("small", exs[:1])):
+        run_dir = tmp_path / "abl" / name
+        run_dir.mkdir(parents=True)
+        (run_dir / "manifest.json").write_text(json.dumps({"layer": "agent", "run": name}))
+        await run_agent_eval(
+            FakeGraph(), subset, run_dir / "results.jsonl", run_name=name, kb_enabled=True
+        )
+
+    summary = write_reports(tmp_path / "abl").read_text()
+    assert "## Same questions" in summary
+    assert "| dense | 1 | 100.0 |" in summary  # restricted to small's single qid
+    assert "| small | 1 | 100.0 | 100.0 | 0 | 0 | 1 |" in summary

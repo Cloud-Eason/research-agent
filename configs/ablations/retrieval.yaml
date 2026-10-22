@@ -30,3 +30,7 @@ runs:
   - name: c128_bge
     limit: 100   # ~10x slower reranker on CPU; same first 100 questions as the others
     settings: {chunk_size: 128, chunk_overlap: 16, reranker_model: BAAI/bge-reranker-base}
+  - name: c128_dense_bge
+    limit: 100   # does BM25 still help once the reranker is strong? compare with c128_bge
+    settings: {chunk_size: 128, chunk_overlap: 16, retrieval_use_bm25: false,
+               reranker_model: BAAI/bge-reranker-base}

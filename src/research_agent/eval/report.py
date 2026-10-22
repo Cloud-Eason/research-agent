@@ -117,6 +117,64 @@ def summarize_retrieval(records: Sequence[dict[str, Any]]) -> dict[str, dict[str
     return out
 
 
+def _final_stage(record: dict[str, Any]) -> str:
+    """The last stage this record has: what the agent would actually be handed."""
+    return next(s for s in reversed(STAGE_ORDER) if s in record["stages"])
+
+
+# ---- paired comparison ----------------------------------------------------------
+def _ok_by_qid(records: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {r["qid"]: r for r in records if "error" not in r}
+
+
+def win_loss(base: dict[str, float], other: dict[str, float]) -> tuple[int, int, int]:
+    """(wins, losses, ties) of `other` against `base` over the qids both have."""
+    shared = base.keys() & other.keys()
+    wins = sum(other[q] > base[q] for q in shared)
+    losses = sum(other[q] < base[q] for q in shared)
+    return wins, losses, len(shared) - wins - losses
+
+
+def pick_baseline(names: Sequence[str], baseline: str | None = None) -> str:
+    if baseline is not None:
+        if baseline not in names:
+            raise ValueError(f"baseline run {baseline!r} not found; have {sorted(names)}")
+        return baseline
+    return "dense" if "dense" in names else names[0]
+
+
+def _paired_section(scores: dict[str, dict[str, float]], baseline: str, metric: str) -> list[str]:
+    base = scores[baseline]
+    rows = []
+    for name, other in scores.items():
+        if name == baseline:
+            continue
+        shared = base.keys() & other.keys()
+        wins, losses, ties = win_loss(base, other)
+        rows.append(
+            [
+                name,
+                str(len(shared)),
+                _pct(_mean([base[q] for q in shared])) if shared else "-",
+                _pct(_mean([other[q] for q in shared])) if shared else "-",
+                str(wins),
+                str(losses),
+                str(ties),
+            ]
+        )
+    if not rows:
+        return []
+    return [
+        f"## Per-question {metric} vs `{baseline}`",
+        "",
+        _md_table(["run", "n shared", baseline, "run", "wins", "losses", "ties"], rows),
+        "",
+        f"Only qids both runs answered without error. wins: questions where the run's "
+        f"{metric} beats `{baseline}`.",
+        "",
+    ]
+
+
 # ---- writing --------------------------------------------------------------------
 def _md_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
@@ -131,19 +189,26 @@ def _run_dirs(eval_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
     return found
 
 
-def write_reports(eval_dir: Path) -> Path:
-    """Write summary.md / summary.csv for an ablation directory and errors.jsonl per run."""
+def write_reports(eval_dir: Path, baseline: str | None = None) -> Path:
+    """Write summary.md / summary.csv for an ablation directory and errors.jsonl per run.
+
+    `baseline` names the run every other run is compared against question by question;
+    by default `dense` if there is one, else the first run directory.
+    """
     runs = _run_dirs(eval_dir)
     if not runs:
         raise FileNotFoundError(f"no runs with manifest.json under {eval_dir}")
     layer = runs[0][1]["layer"]
+    base_run = pick_baseline([m["run"] for _, m in runs], baseline)
     md: list[str] = [f"# {eval_dir.name} ({layer} layer)", ""]
     csv_rows: list[dict[str, Any]] = []
 
     if layer == "agent":
         summaries, type_rows = [], []
+        ok_by_run: dict[str, dict[str, dict[str, Any]]] = {}
         for run_dir, manifest in runs:
             records = latest_records(run_dir / "results.jsonl")
+            ok_by_run[manifest["run"]] = _ok_by_qid(records)
             summary = {"run": manifest["run"], **summarize_agent(records)}
             summaries.append(summary)
             for qtype, s in agent_by_type(records).items():
@@ -166,11 +231,33 @@ def write_reports(eval_dir: Path) -> Path:
             _md_table(["run", "type", "n", "EM", "F1"], type_rows),
             "",
         ]
+        if len({len(ok) for ok in ok_by_run.values()}) > 1:
+            shared = set.intersection(*(set(ok) for ok in ok_by_run.values()))
+            subset_rows = []
+            for name, ok in ok_by_run.items():
+                s = summarize_agent([ok[q] for q in sorted(shared)])
+                subset_rows.append(
+                    [name, str(s["n"]), _pct(s["em"]), _pct(s["f1"]), _pct(s["evidence_all_found"])]
+                )
+            md += [
+                "## Same questions",
+                "",
+                _md_table(["run", "n", "EM", "F1", "evidence all"], subset_rows),
+                "",
+                "Every run restricted to the qids all runs answered without error.",
+                "",
+            ]
+        em = {name: {q: r["em"] for q, r in ok.items()} for name, ok in ok_by_run.items()}
+        md += _paired_section(em, base_run, "EM")
     else:
         header = ["run", "stage", *[f"R@{k}" for k in KS], "All@2", "All@5", "All@10", "ms"]
         rows = []
+        all5: dict[str, dict[str, float]] = {}
         for run_dir, manifest in runs:
             records = latest_records(run_dir / "results.jsonl")
+            all5[manifest["run"]] = {
+                q: r["stages"][_final_stage(r)]["all@5"] for q, r in _ok_by_qid(records).items()
+            }
             for stage, s in summarize_retrieval(records).items():
                 rows.append(
                     [
@@ -192,6 +279,7 @@ def write_reports(eval_dir: Path) -> Path:
             "of questions with every supporting paragraph in the top k.",
             "",
         ]
+        md += _paired_section(all5, base_run, "All@5 (final stage)")
 
     out = eval_dir / "summary.md"
     out.write_text("\n".join(md), encoding="utf-8")
@@ -228,7 +316,7 @@ def _export_retrieval_misses(run_dir: Path, records: Sequence[dict[str, Any]]) -
             if "error" in r:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
                 continue
-            last = next(s for s in reversed(STAGE_ORDER) if s in r["stages"])
+            last = _final_stage(r)
             if r["stages"][last]["all@5"] < 1.0:
                 f.write(
                     json.dumps(
