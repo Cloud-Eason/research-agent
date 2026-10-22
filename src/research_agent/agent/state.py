@@ -85,6 +85,11 @@ def merge_usage(left: dict[str, int] | None, right: dict[str, int] | None) -> di
     return merged
 
 
+def merge_unique(left: list[str] | None, right: list[str] | None) -> list[str]:
+    """Reducer: union of string lists, in order of first appearance."""
+    return list(dict.fromkeys([*(left or []), *(right or [])]))
+
+
 class AgentState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]
     # Accumulates across turns of a thread, so source ids never collide.
@@ -95,3 +100,6 @@ class AgentState(TypedDict, total=False):
     final: dict[str, Any] | None  # FinalAnswer.model_dump()
     # Thread-level token accounting (one thread per question in eval).
     token_usage: Annotated[dict[str, int], merge_usage]
+    # "model_name/system_fingerprint" the API reported for each LLM call; an alias
+    # like deepseek-chat can be served by a different backend over time.
+    served_models: Annotated[list[str], merge_unique]

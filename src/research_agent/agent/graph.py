@@ -31,6 +31,7 @@ from pydantic import ValidationError
 
 from research_agent import crash
 from research_agent.agent.prompts import (
+    AGENT_NO_TOOLS_PROMPT,
     AGENT_SYSTEM_PROMPT,
     FINALIZE_SYSTEM_PROMPT,
     NO_TOOLS_NOTE,
@@ -73,6 +74,13 @@ def usage_from_message(message: BaseMessage) -> dict[str, int]:
     }
 
 
+def served_by(message: BaseMessage) -> list[str]:
+    """["model_name/system_fingerprint"] from the API response, or [] for fakes."""
+    meta = getattr(message, "response_metadata", None) or {}
+    model = meta.get("model_name")
+    return [f"{model}/{meta.get('system_fingerprint') or '-'}"] if model else []
+
+
 class AgentNodes:
     def __init__(self, deps: AgentDeps) -> None:
         self.deps = deps
@@ -84,8 +92,9 @@ class AgentNodes:
     # ---- agent: one LLM call that may request tools ----------------------
     def agent(self, state: AgentState) -> dict[str, Any]:
         step = state.get("step", 0)
+        template = AGENT_SYSTEM_PROMPT if self.deps.tools else AGENT_NO_TOOLS_PROMPT
         system = SystemMessage(
-            AGENT_SYSTEM_PROMPT.format(
+            template.format(
                 today=self.deps.today().isoformat(),
                 step=step,
                 max_steps=self.deps.max_steps,
@@ -99,6 +108,7 @@ class AgentNodes:
             "messages": [response],
             "step": step + 1,
             "token_usage": usage_from_message(response),
+            "served_models": served_by(response),
         }
 
     # ---- router -----------------------------------------------------------
@@ -197,7 +207,7 @@ class AgentNodes:
             ),
             *_conversation_only(messages),
         ]
-        draft, usage = _coerce_draft(self.deps.finalizer.invoke(prompt))
+        draft, usage, served = _coerce_draft(self.deps.finalizer.invoke(prompt))
         final = build_final_answer(draft, sources, hit_step_limit=hit_limit)
 
         # Replace the agent's plain-text draft (same id) instead of appending a
@@ -211,6 +221,7 @@ class AgentNodes:
             "final": final.model_dump(),
             "hit_step_limit": hit_limit,
             "token_usage": usage,
+            "served_models": served,
         }
 
 
@@ -227,19 +238,21 @@ def _conversation_only(messages: Sequence[AnyMessage]) -> list[BaseMessage]:
     ]
 
 
-def _coerce_draft(result: Any) -> tuple[FinalAnswerDraft, dict[str, int]]:
+def _coerce_draft(result: Any) -> tuple[FinalAnswerDraft, dict[str, int], list[str]]:
     """Accept either a parsed draft or with_structured_output(include_raw=True) output."""
     usage: dict[str, int] = {}
+    served: list[str] = []
     if isinstance(result, dict) and "parsed" in result:
         raw = result.get("raw")
         if isinstance(raw, BaseMessage):
             usage = usage_from_message(raw)
+            served = served_by(raw)
         if result.get("parsing_error") or result["parsed"] is None:
             raise ValueError(f"finalizer output could not be parsed: {result.get('parsing_error')}")
         result = result["parsed"]
     if isinstance(result, FinalAnswerDraft):
-        return result, usage
-    return FinalAnswerDraft.model_validate(result), usage
+        return result, usage, served
+    return FinalAnswerDraft.model_validate(result), usage, served
 
 
 def build_final_answer(

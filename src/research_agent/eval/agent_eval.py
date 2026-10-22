@@ -68,6 +68,7 @@ def score_agent_result(
         "output_tokens": int(usage.get("output_tokens", 0)),
         "llm_calls": int(usage.get("llm_calls", 0)),
         "latency_s": round(latency_s, 3),
+        "served_models": list(result.get("served_models", [])),
         "tool_calls": calls,
         **trajectory_metrics(
             example.question, example.type, gold_titles, calls, kb_enabled=kb_enabled

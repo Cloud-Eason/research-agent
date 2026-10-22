@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -149,3 +150,26 @@ def test_recursion_limit_covers_max_steps() -> None:
     # start + n agent + (n-1) tools + finalize must fit under the limit
     for n in (1, 3, 8, 20):
         assert recursion_limit_for(n) > 1 + n + (n - 1) + 1
+
+
+def test_no_tools_prompt_names_no_tools(make_deps: MakeDeps) -> None:
+    """Named-but-unbound tools make DeepSeek write tool calls as plain text."""
+    llm = ScriptedChatModel([AIMessage(content="Paris")])
+    deps = dataclasses.replace(make_deps(llm), tools={})
+    _ask(build_graph(deps), "What is the capital of France?")
+    system = str(llm.calls[0][0].content)
+    assert not any(word in system for word in ("kb_search", "web_search", "tool"))
+
+
+def test_served_models_are_recorded_once(make_deps: MakeDeps) -> None:
+    meta = {"model_name": "deepseek-flash", "system_fingerprint": "fp1"}
+    llm = ScriptedChatModel(
+        [
+            AIMessage(
+                content="", tool_calls=tool_call("q", "c1").tool_calls, response_metadata=meta
+            ),
+            AIMessage(content="Paris [S1]", response_metadata=meta),
+        ]
+    )
+    result = _ask(build_graph(make_deps(llm)), "What is the capital of France?")
+    assert result["served_models"] == ["deepseek-flash/fp1"]

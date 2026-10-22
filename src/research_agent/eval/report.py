@@ -262,6 +262,23 @@ def write_reports(eval_dir: Path, baseline: str | None = None) -> Path:
                 "Every run restricted to the qids all runs answered without error.",
                 "",
             ]
+        served_rows = []
+        for name, ok in ok_by_run.items():
+            counts: dict[str, int] = {}
+            for r in ok.values():
+                for model in r.get("served_models", []):  # absent from older records
+                    counts[model] = counts.get(model, 0) + 1
+            served = ", ".join(f"{m} ({n})" for m, n in sorted(counts.items())) or "-"
+            served_rows.append([name, served])
+        md += [
+            "## Served models",
+            "",
+            _md_table(["run", "model/fingerprint (questions)"], served_rows),
+            "",
+            "As reported by the API for each LLM call. More than one entry, or entries "
+            "that differ between runs, means the backend changed mid-evaluation.",
+            "",
+        ]
         em = {name: {q: r["em"] for q, r in ok.items()} for name, ok in ok_by_run.items()}
         md += _paired_section(em, base_run, "EM")
     else:

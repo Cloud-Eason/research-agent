@@ -23,6 +23,17 @@ How to work:
 Budget: you have used {step} of {max_steps} reasoning steps for this question.
 """
 
+# Used when no tools are bound. It must not name any tool: given tool names but no
+# tools, DeepSeek writes tool calls into the message text instead of answering.
+AGENT_NO_TOOLS_PROMPT = """\
+You are a careful research assistant. Today is {today}.
+
+No search or retrieval is available for this question. Answer the user's latest
+question from your own knowledge, in plain text. For a multi-hop question, work
+through each hop briefly, then give a short draft answer. If you are unsure,
+say so instead of inventing facts.
+"""
+
 FINALIZE_SYSTEM_PROMPT = """\
 You write the final answer to the user's latest question, using only the
 sources listed below and the conversation so far.

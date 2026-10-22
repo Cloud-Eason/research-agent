@@ -26,3 +26,5 @@ base:
 runs:
   - name: hybrid_bge
     settings: {reranker_model: BAAI/bge-reranker-base}
+  - name: no_retrieval
+    settings: {enable_kb_search: false}
